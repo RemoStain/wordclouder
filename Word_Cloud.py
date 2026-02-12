@@ -1,38 +1,41 @@
-import numpy as np
-import pandas as pd
-from PIL import Image
-from wordcloud import WordCloud, STOPWORDS
+import numpy as np  # for numerical operations and array manipulation like handling image data for masks
+import pandas as pd  # for data manipulation and analysis
+from PIL import Image  # for image processing
+from wordcloud import WordCloud, STOPWORDS  # for generating the word cloud and using built-in stopwords to filter out common words
 
-from safe_input import safe_input
+from safe_input import safe_input  # for safely handling user input with type checking and default values, improving the robustness of the interactive prompts
 
-import re
-from functools import wraps
+import re  # for regular expression operations, used to filter strings
+from functools import wraps  # for creating decorators, used to wrap the load_data function with text cleaning functionality
 
-# Regular expressions to identify usernames and URLs in the text
-_USERNAME_RE = re.compile(r"@\w+")
-_URL_RE = re.compile(r"https?://t\.co/\S+|https?://\S+|www\.\S+")
 
+# Regular expressions
+# re.compile is used to precompile the regex patterns for better performance when used repeatedly
+_USERNAME_RE = r"@\w+"
+_URL_RE = r"https?://t\.co/\S+|https?://\S+|www\.\S+"
+_EXPLETIVES_RE = r"\b(?:fuck|shit|dick|asshole)\w*"
+
+_CLEAN_RE = re.compile(
+    rf"(?:{_URL_RE}|{_USERNAME_RE}|{_EXPLETIVES_RE})",
+    re.IGNORECASE,
+)
+
+def _clean_one(x):
+    # Leave non-strings unchanged 
+    if not isinstance(x, str):
+        return x
+    return _CLEAN_RE.sub("", x)
 
 def clean_text_decorator(func):
-    """
-    Decorator to clean text data by removing URLs and usernames from the 'Content' column.
-    """
-
     @wraps(func)
     def wrapper(*args, **kwargs):
-        text_data = func(*args, **kwargs)  # df/network_filter stay intact
+        text_data = func(*args, **kwargs)
 
-        # If it's a pandas Series, preserve the type/index
         try:
-            import pandas as pd
-
             if isinstance(text_data, pd.Series):
-                return text_data.map(lambda s: _URL_RE.sub("", _USERNAME_RE.sub("", s)))
+                return text_data.map(_clean_one)
         except Exception:
             pass
-
-        # Generic iterable path (list/tuple/etc.)
-        return [_URL_RE.sub("", _USERNAME_RE.sub("", text)) for text in text_data]
 
     return wrapper
 
@@ -62,6 +65,24 @@ def get_available_filters(df) -> set[str]:
     """
     return set(df["Network"].dropna().astype(str).unique())
 
+def batch_choice() -> bool:
+    """
+    Prompt the user to choose between batch mode and interactive mode.
+    Returns:
+        True if batch mode is selected, False if interactive mode is selected.
+    """
+    while True:
+        choice = safe_input(
+            str,
+            "Select mode: \n(1) Batch Mode (generate all word clouds at once), \n(2) Interactive Mode (generate one selected cloud) \n[default = 2]: ",
+            "2",
+        ).strip().lower()
+        if choice in ("1", "batch", "b"):
+            return True
+        elif choice in ("2", "interactive", "i"):
+            return False
+        else:
+            print("Invalid selection. Please enter '1' for Batch Mode or '2' for Interactive Mode.")
 
 def choose_filter_menu(filters: set[str], prechosen_number) -> str | None:
     """
@@ -177,6 +198,15 @@ def solid_black_color_func(
 
 
 def generate_word_cloud(text_data, mask_image_path=None, options: dict | None = None):
+    """
+    Generate a word cloud from the provided text data, optionally using a mask image and configuration options.
+    Args:
+        text_data: A list or pandas Series of strings to generate the word cloud from.
+        mask_image_path: Optional file path to an image to use as a mask for the word cloud.
+        options: Optional dictionary of configuration options for the word cloud generation (e.g., max_words, prefer_horizontal).
+    Returns:
+        A WordCloud object representing the generated word cloud.
+    """
     options = options or {}
     text = " ".join(text_data)
 
@@ -271,23 +301,23 @@ def run_wordcloud(df, network_filter, mask_image_path=None, show=False, options=
         display_word_cloud(wordcloud)
 
 
-def main(batch_mode: bool):
+def main():
     """
     Main function to run the word cloud generation process.
     Steps:
         1. Load the CSV file and extract the 'Network' and 'Content' columns.
         2. Get the unique filters from the 'Network' column.
-        3. If batch_mode is True, generate word clouds for all filters in batch mode.
+        3. Prompt the user to choose between batch mode and interactive mode.
+        4. If batch_mode is True, generate word clouds for all filters in batch mode.
            Otherwise, run in interactive mode to select a filter and generate the corresponding word cloud.
-
-    Args:
-        batch_mode: If True, generates word clouds for all filters in batch mode. If False, runs in interactive mode to select a filter.
     """
     file_path = "data.csv"
     mask_image_path = None
 
     df = pd.read_csv(file_path, usecols=["Network", "Content"])
     filters = sorted(get_available_filters(df))
+
+    batch_mode = batch_choice()
 
     if batch_mode:
         # batch mode
@@ -313,6 +343,5 @@ def main(batch_mode: bool):
         run_wordcloud(df, network_filter, mask_image_path, show=True, options=options)
 
 
-if __name__ == "__main__":
-    batch_mode = False  # Set to True for batch mode, False for interactive mode
-    main(batch_mode)
+if __name__ == "__main__": 
+    main()
