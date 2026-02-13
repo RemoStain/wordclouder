@@ -71,24 +71,34 @@ def batch_choice() -> bool:
     Returns:
         True if batch mode is selected, False if interactive mode is selected.
     """
-    while True:
-        choice = safe_input(
-            str,
-            "Select mode: \n(1) Batch Mode (generate all word clouds at once), \n(2) Interactive Mode (generate one selected cloud) \n[default = 2]: ",
-            "2",
-        ).strip().lower()
-        if choice in ("1", "batch", "b"):
-            return True
-        elif choice in ("2", "interactive", "i"):
-            return False
-        else:
-            print("Invalid selection. Please enter '1' for Batch Mode or '2' for Interactive Mode.")
+    try:
+        while True:
+            choice = safe_input(
+                str,
+                "Select mode: \n(1) Batch Mode (generate all word clouds at once), \n(2) Interactive Mode (generate one selected cloud) \n[default = 2]: ",
+                "2",
+            ).strip().lower()
+            if choice in ("1", "batch", "b"):
+                return True
+            elif choice in ("2", "interactive", "i"):
+                return False
+            else:
+                print("Invalid selection. Please enter '1' for Batch Mode or '2' for Interactive Mode.")
+    except KeyboardInterrupt:
+        print("\nExiting due to keyboard interrupt.")
+        raise SystemExit(0)
+    except Exception as e:
+        print(f"Error: {e}")
+        raise SystemExit(0)
+        
 
 def choose_filter_menu(filters: set[str], prechosen_number) -> str | None:
     """
     Display a menu to choose a network filter from the available options.
     Args:
         filters: A set of available network filter options.
+        prechosen_number: An optional integer representing a prechosen filter option.
+            If provided and valid, the corresponding filter will be returned without prompting the user.
     Returns:
         The selected network filter as a string, or None if "all" is selected.
     """
